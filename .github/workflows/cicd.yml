@@ -10,6 +10,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+  OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
+  OCIR_REGION_KEY: fra
+  OCIR_REPO: spring-projects/spring-boot-hello-app
+  IMAGE_TAG: ${{ github.sha }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,3 +46,17 @@ jobs:
       with:
         name: spring-helloworld-jar
         path: target/*.jar
+
+    - name: Login to OCIR
+      if: github.event_name == 'push'
+      uses: oracle-actions/login-ocir@v1.3.0
+      with:
+        auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
+
+    - name: Build i push Docker slike
+      if: github.event_name == 'push'
+      run: |
+        IMAGE="${OCIR_REGION_KEY}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPO}"
+        docker build -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:latest" .
+        docker push "${IMAGE}:${IMAGE_TAG}"
+        docker push "${IMAGE}:latest"
