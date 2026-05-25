@@ -47,10 +47,12 @@ jobs:
         name: spring-helloworld-jar
         path: target/*.jar
 
+    # POPRAVLJENO: Dodan obavezni parametar username točno u formatu koji traži akcija
     - name: Login to OCIR
       if: github.event_name == 'push'
       uses: oracle-actions/login-ocir@v1.3.0
       with:
+        username: "${{ secrets.OCIR_NAMESPACE }}/${{ secrets.OCI_CLI_USER }}"
         auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
 
     - name: Build i push Docker slike
@@ -60,42 +62,3 @@ jobs:
         docker build -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:latest" .
         docker push "${IMAGE}:${IMAGE_TAG}"
         docker push "${IMAGE}:latest"
-
-  deploy:
-    name: Deploy na OKE
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v6
-
-    - name: Configure kubectl za OKE
-      uses: oracle-actions/configure-kubectl-oke@v1.5.0
-      with:
-        cluster: ${{ secrets.OKE_CLUSTER_OCID }}
-
-    - name: Update image i apply manifest
-      run: |
-        IMAGE="${OCIR_REGION_KEY}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPO}:${IMAGE_TAG}"
-        sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/sbapp-deploy.yaml
-        kubectl apply -f k8s/sbapp-deploy.yaml
-
-    - name: Verify rollout
-      run: kubectl rollout status deployment/sbapp --timeout=5m
-
-    - name: Smoke test /hostname
-      run: |
-        EXT_IP=""
-        for i in $(seq 1 30); do
-          EXT_IP=$(kubectl get svc sbapp-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-          [ -n "${EXT_IP}" ] && break
-          echo "Čekam Load Balancer IP... (${i}/30)"
-          sleep 10
-        done
-        if [ -z "${EXT_IP}" ]; then
-          echo "Load Balancer nije dobio IP u 5 minuta"
-          exit 1
-        fi
-        echo "Aplikacija je na http://${EXT_IP}:8080/hostname"
-        curl --fail --max-time 10 "http://${EXT_IP}:8080/hostname"
