@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sbapp
+  labels:
+    app: sbapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sbapp
+  template:
+    metadata:
+      labels:
+        app: sbapp
+    spec:
+      containers:
+      - name: sbapp
+        image: IMAGE_PLACEHOLDER
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sbapp-lb
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: sbapp
