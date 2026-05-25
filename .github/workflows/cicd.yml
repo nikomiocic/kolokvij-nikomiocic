@@ -65,13 +65,13 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
 
-    # POPRAVLJENO: Dodani svi obavezni ključevi iz skripte za autorizaciju na OKE klaster
+    # POPRAVLJENO: Maknut "_ocid" iz naziva parametara (sada su točno user i tenancy)
     - name: Configure kubectl za OKE
       uses: oracle-actions/configure-kubectl-oke@v1.5.0
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
-        user_ocid: ${{ secrets.OCI_CLI_USER }}
-        tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+        user: ${{ secrets.OCI_CLI_USER }}
+        tenancy: ${{ secrets.OCI_CLI_TENANCY }}
         fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
         private_key: ${{ secrets.OCI_CLI_KEY_CONTENT }}
         region: ${{ secrets.OCI_CLI_REGION }}
