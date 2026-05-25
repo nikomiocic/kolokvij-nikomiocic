@@ -10,22 +10,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+  OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
+  OCIR_REGION_KEY: fra
+  OCIR_REPO: spring-projects/spring-boot-hello-app
+  IMAGE_TAG: ${{ github.sha }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    # Premještamo OCI CLI tajne izravno u env ovog posla kako bi ih oracle-action vidio
-    env:
-      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
-      OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
-      OCIR_REGION_KEY: fra
-      OCIR_REPO: spring-projects/spring-boot-hello-app
-      IMAGE_TAG: ${{ github.sha }}
-
     steps:
     - name: Checkout
       uses: actions/checkout@v6
@@ -49,12 +43,11 @@ jobs:
         name: spring-helloworld-jar
         path: target/*.jar
 
-    # Službena prijava na OCIR - osiguravamo da vidi sve OCI_CLI_ varijable iz env-a
-    - name: Login to OCIR
+    # Čisti, neprobojni Docker login koji zaobilazi sve bugove Oracle akcije
+    - name: Login to OCIR (Standard Docker)
       if: github.event_name == 'push'
-      uses: oracle-actions/login-ocir@v1.3.0
-      with:
-        auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
+      run: |
+        echo "${{ secrets.OCI_AUTH_TOKEN }}" | docker login ${OCIR_REGION_KEY}.ocir.io -u "${OCIR_NAMESPACE}/${OCI_CLI_USER}" --password-stdin
 
     - name: Build i push Docker slike
       if: github.event_name == 'push'
