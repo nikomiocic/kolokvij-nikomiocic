@@ -1,0 +1,87 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+  OCIR_NAMESPACE: "frdrjaatjghn"
+  OCIR_REPO: "spring-projects/spring-boot-hello-app"
+
+jobs:
+  build-jar:
+    name: Build Spring Boot JAR
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout koda
+      uses: actions/checkout@v4
+
+    - name: Postavi Java Environment
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Dozvola za pokretanje Maven Wrappera
+      run: chmod +x mvnw
+
+    - name: Izgradi paket s Mavenom
+      run: ./mvnw clean package -DskipTests
+
+    - name: Pohrani JAR kao Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: spring-boot-jar
+        path: target/*.jar
+        retention-days: 1
+
+  build-image:
+    name: Build and Push Docker Image
+    needs: build-jar
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout koda
+      uses: actions/checkout@v4
+
+    - name: Preuzmi JAR Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: spring-boot-jar
+        path: target/
+
+    # Korištenje napredne metode koja rješava probleme s e-mailovima i Identity domenama
+    - name: Prijava na Oracle Cloud Container Registry (OCIR)
+      uses: oracle-actions/login-ocir@v1.2.1
+      with:
+        user_ocid: ${{ secrets.OCI_CLI_USER }}
+        tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+        fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+        private_key: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
+        region: ${{ env.OCI_CLI_REGION }}
+
+    - name: Postavi Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Izgradi i gurni Docker sliku
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.OCI_CLI_REGION }}.ocir.io/frdrjaatjghn/${{ env.OCIR_REPO }}:${{ github.sha }}
+          ${{ env.OCI_CLI_REGION }}.ocir.io/frdrjaatjghn/${{ env.OCIR_REPO }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
