@@ -10,8 +10,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Ovdje su SVE varijable koje priručnik zahtijeva, tako da akcija sama zna pročitati ključeve
 env:
   OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
   OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
   OCIR_REGION_KEY: fra
   OCIR_REPO: spring-projects/spring-boot-hello-app
@@ -65,16 +70,11 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
 
-    # POPRAVLJENO: Maknut "_ocid" iz naziva parametara (sada su točno user i tenancy)
+    # Akcija sada čita iz env bloka gore, potreban joj je samo cluster OCID
     - name: Configure kubectl za OKE
       uses: oracle-actions/configure-kubectl-oke@v1.5.0
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
-        user: ${{ secrets.OCI_CLI_USER }}
-        tenancy: ${{ secrets.OCI_CLI_TENANCY }}
-        fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-        private_key: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-        region: ${{ secrets.OCI_CLI_REGION }}
 
     - name: Update image i apply manifest
       run: |
