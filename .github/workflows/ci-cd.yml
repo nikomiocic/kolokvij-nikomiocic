@@ -11,11 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+  OCI_CLI_REGION: "eu-frankfurt-1"
   OCIR_NAMESPACE: "frdrjaatjghn"
   OCIR_REPO: "spring-projects/spring-boot-hello-app"
 
@@ -61,14 +57,11 @@ jobs:
         name: spring-boot-jar
         path: target/
 
-    # Korištenje napredne metode koja rješava probleme s e-mailovima i Identity domenama
+    # Popravljena prijava s točno podržanim parametrima prema dokumentaciji akcije
     - name: Prijava na Oracle Cloud Container Registry (OCIR)
       uses: oracle-actions/login-ocir@v1.2.1
       with:
-        user_ocid: ${{ secrets.OCI_CLI_USER }}
-        tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
-        fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
-        private_key: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        username: "${{ env.OCIR_NAMESPACE }}/${{ secrets.OCI_CLI_USER }}"
         auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
         region: ${{ env.OCI_CLI_REGION }}
 
@@ -81,7 +74,7 @@ jobs:
         context: .
         push: true
         tags: |
-          ${{ env.OCI_CLI_REGION }}.ocir.io/frdrjaatjghn/${{ env.OCIR_REPO }}:${{ github.sha }}
-          ${{ env.OCI_CLI_REGION }}.ocir.io/frdrjaatjghn/${{ env.OCIR_REPO }}:latest
+          ${{ env.OCI_CLI_REGION }}.ocir.io/${{ env.OCIR_NAMESPACE }}/${{ env.OCIR_REPO }}:${{ github.sha }}
+          ${{ env.OCI_CLI_REGION }}.ocir.io/${{ env.OCIR_NAMESPACE }}/${{ env.OCIR_REPO }}:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
