@@ -3,7 +3,8 @@ name: CI/CD Spring Boot na OCIR
 on:
   push:
     branches: [ "main" ]
-  pull_request: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,10 +12,6 @@ concurrency:
 
 env:
   OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
   OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
   OCIR_REGION_KEY: fra
   OCIR_REPO: spring-projects/spring-boot-hello-app
@@ -68,24 +65,26 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
 
-    # Službena Oracle akcija za automatsko spajanje na tvoj Kubernetes klaster
+    # POPRAVLJENO: Dodani svi obavezni ključevi iz skripte za autorizaciju na OKE klaster
     - name: Configure kubectl za OKE
       uses: oracle-actions/configure-kubectl-oke@v1.5.0
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+        user_ocid: ${{ secrets.OCI_CLI_USER }}
+        tenancy_ocid: ${{ secrets.OCI_CLI_TENANCY }}
+        fingerprint: ${{ secrets.OCI_CLI_FINGERPRINT }}
+        private_key: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        region: ${{ secrets.OCI_CLI_REGION }}
 
-    # Mijenjamo PLACEHOLDER u manifestu s točnom i svježom Docker slikom
     - name: Update image i apply manifest
       run: |
         IMAGE="${OCIR_REGION_KEY}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPO}:${IMAGE_TAG}"
         sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/sbapp-deploy.yaml
         kubectl apply -f k8s/sbapp-deploy.yaml
 
-    # Čekamo do 5 minuta da Kubernetes uspješno pokrene sve kontejnere
     - name: Verify rollout
       run: kubectl rollout status deployment/sbapp --timeout=5m
 
-    # Smoke test: Čekamo da Load Balancer dobije javnu IP adresu i šaljemo curl zahtjev
     - name: Smoke test /hostname
       run: |
         EXT_IP=""
