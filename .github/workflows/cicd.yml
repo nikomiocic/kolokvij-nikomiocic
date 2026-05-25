@@ -10,20 +10,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-  OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-  OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-  OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-  OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
-  OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
-  OCIR_REGION_KEY: fra
-  OCIR_REPO: spring-projects/spring-boot-hello-app
-  IMAGE_TAG: ${{ github.sha }}
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # Premještamo OCI CLI tajne izravno u env ovog posla kako bi ih oracle-action vidio
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
+      OCIR_REGION_KEY: fra
+      OCIR_REPO: spring-projects/spring-boot-hello-app
+      IMAGE_TAG: ${{ github.sha }}
+
     steps:
     - name: Checkout
       uses: actions/checkout@v6
@@ -47,12 +49,11 @@ jobs:
         name: spring-helloworld-jar
         path: target/*.jar
 
-    # POPRAVLJENO: Dodan obavezni parametar username točno u formatu koji traži akcija
+    # Službena prijava na OCIR - osiguravamo da vidi sve OCI_CLI_ varijable iz env-a
     - name: Login to OCIR
       if: github.event_name == 'push'
       uses: oracle-actions/login-ocir@v1.3.0
       with:
-        username: "${{ secrets.OCIR_NAMESPACE }}/${{ secrets.OCI_CLI_USER }}"
         auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
 
     - name: Build i push Docker slike
