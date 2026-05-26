@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: kolokvij
-        image: fra.ocir.io/frdrjaatjghn/kolokvij/app:1.0
+        image: IMAGE_PLACEHOLDER
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
