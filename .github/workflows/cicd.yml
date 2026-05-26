@@ -82,3 +82,21 @@ jobs:
         done
         if [ -z "${EXT_IP}" ]; then echo "Timeout"; exit 1; fi
         curl --fail --max-time 10 "http://${EXT_IP}:8080/hello/Kolokvij"
+    - name: Smoke test
+      run: |
+        EXT_IP=""
+        for i in $(seq 1 30); do
+          EXT_IP=$(kubectl get svc kolokvij-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+          [ -n "${EXT_IP}" ] && [ "${EXT_IP}" != "<pending>" ] && break
+          echo "Čekam Load Balancer IP... (${i}/30)"
+          sleep 10
+        done
+        
+        echo "IP je ${EXT_IP}. Čekam da aplikacija odgovori..."
+        for i in $(seq 1 10); do
+          curl -f "http://${EXT_IP}:8080/hello/Kolokvij" && exit 0
+          echo "Aplikacija još nije spremna, čekam 10s... (${i}/10)"
+          sleep 10
+        done
+        echo "Smoke test nije uspio!"
+        exit 1
