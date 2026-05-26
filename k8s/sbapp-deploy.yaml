@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: sbapp
-        image: IMAGE_PLACEHOLDER
+        image: 
         imagePullPolicy: Always
         ports:
         - name: http
