@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kolokvij
+  labels:
+    app: kolokvij
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kolokvij
+  template:
+    metadata:
+      labels:
+        app: kolokvij
+    spec:
+      containers:
+      - name: kolokvij
+        image: fra.ocir.io/frdrjaatjghn/kolokvij/app:1.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kolokvij-lb
+  annotations:
+    oci.oraclecloud.com/load-balancer-type: "lb"
+    service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "100"
+spec:
+  type: LoadBalancer
+  selector:
+    app: kolokvij
+  ports:
+  - port: 8080
+    targetPort: 8080
