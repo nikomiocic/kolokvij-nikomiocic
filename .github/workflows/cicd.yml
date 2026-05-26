@@ -72,16 +72,26 @@ jobs:
       run: kubectl rollout status deployment/kolokvij --timeout=5m
 
     - name: Smoke test
-      run: |
-        EXT_IP=""
-        for i in $(seq 1 30); do
-          EXT_IP=$(kubectl get svc kolokvij-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-          [ -n "${EXT_IP}" ] && [ "${EXT_IP}" != "<pending>" ] && break
-          echo "Čekam Load Balancer IP... (${i}/30)"
+     run: |
+        
+        echo "Čekam Load Balancer..."
+        for i in {1..30}; do
+          EXT_IP=$(kubectl get svc kolokvij-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+          [ -n "$EXT_IP" ] && break
           sleep 10
         done
-        if [ -z "${EXT_IP}" ]; then echo "Timeout"; exit 1; fi
-        curl --fail --max-time 10 "http://${EXT_IP}:8080/hello/Kolokvij"
+        
+       
+        echo "IP dobiven ($EXT_IP). Čekam 60 sekundi da se LB propagira..."
+        sleep 60
+        
+       
+        for i in {1..10}; do
+          curl --fail -s "http://${EXT_IP}:8080/hello/Kolokvij" && exit 0
+          echo "Pokušaj $i: Aplikacija nije spremna, čekam 20s..."
+          sleep 20
+        done
+        exit 1
     - name: Smoke test
       run: |
         EXT_IP=""
