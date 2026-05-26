@@ -1,16 +1,13 @@
-name: CI/CD Spring Boot na OCIR
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
-# Ovdje su SVE varijable koje priručnik zahtijeva, tako da akcija sama zna pročitati ključeve
 env:
   OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
   OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
@@ -19,8 +16,9 @@ env:
   OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
   OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
   OCIR_REGION_KEY: fra
-  OCIR_REPO: spring-projects/spring-boot-hello-app
+  OCIR_REPO: kolokvij/app
   IMAGE_TAG: ${{ github.sha }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
@@ -32,29 +30,19 @@ jobs:
     - name: Set up JDK 17
       uses: actions/setup-java@v5
       with:
-        distribution: 'oracle'
+        distribution: 'temurin'
         java-version: '17'
 
-    - name: Dozvola za pokretanje Maven Wrappera
-      run: chmod +x mvnw
+    - name: Build with Maven
+      run: |
+        chmod +x mvnw
+        ./mvnw -B package -DskipTests
 
-    - name: Build i test
-      run: ./mvnw -B package
-
-    - name: Upload JAR artifact
-      if: success()
-      uses: actions/upload-artifact@v7
-      with:
-        name: spring-helloworld-jar
-        path: target/*.jar
-
-    - name: Login to OCIR (Standard Docker)
-      if: github.event_name == 'push'
+    - name: Login to OCIR
       run: |
         echo "${{ secrets.OCI_AUTH_TOKEN }}" | docker login ${OCIR_REGION_KEY}.ocir.io -u "${OCIR_NAMESPACE}/${OCI_CLI_USER}" --password-stdin
 
-    - name: Build i push Docker slike
-      if: github.event_name == 'push'
+    - name: Build and Push Docker image
       run: |
         IMAGE="${OCIR_REGION_KEY}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPO}"
         docker build -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:latest" .
@@ -65,12 +53,10 @@ jobs:
     name: Deploy na OKE
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
     - name: Checkout
       uses: actions/checkout@v6
 
-    # Akcija sada čita iz env bloka gore, potreban joj je samo cluster OCID
     - name: Configure kubectl za OKE
       uses: oracle-actions/configure-kubectl-oke@v1.5.0
       with:
@@ -79,24 +65,20 @@ jobs:
     - name: Update image i apply manifest
       run: |
         IMAGE="${OCIR_REGION_KEY}.ocir.io/${OCIR_NAMESPACE}/${OCIR_REPO}:${IMAGE_TAG}"
-        sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/sbapp-deploy.yaml
-        kubectl apply -f k8s/sbapp-deploy.yaml
+        sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" k8s/kolokvij-deploy.yaml
+        kubectl apply -f k8s/kolokvij-deploy.yaml
 
     - name: Verify rollout
-      run: kubectl rollout status deployment/sbapp --timeout=5m
+      run: kubectl rollout status deployment/kolokvij --timeout=5m
 
-    - name: Smoke test /hostname
+    - name: Smoke test
       run: |
         EXT_IP=""
         for i in $(seq 1 30); do
-          EXT_IP=$(kubectl get svc sbapp-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-          [ -n "${EXT_IP}" ] && break
+          EXT_IP=$(kubectl get svc kolokvij-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+          [ -n "${EXT_IP}" ] && [ "${EXT_IP}" != "<pending>" ] && break
           echo "Čekam Load Balancer IP... (${i}/30)"
           sleep 10
         done
-        if [ -z "${EXT_IP}" ]; then
-          echo "Load Balancer nije dobio IP u 5 minuta"
-          exit 1
-        fi
-        echo "Aplikacija je na http://${EXT_IP}:8080/hostname"
-        curl --fail --max-time 10 "http://${EXT_IP}:8080/hostname"
+        if [ -z "${EXT_IP}" ]; then echo "Timeout"; exit 1; fi
+        curl --fail --max-time 10 "http://${EXT_IP}:8080/hello/Kolokvij"
